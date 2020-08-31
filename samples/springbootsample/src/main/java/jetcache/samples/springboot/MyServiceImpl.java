@@ -8,6 +8,9 @@ import com.alicp.jetcache.anno.CreateCache;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
+import java.util.ArrayList;
+import java.util.List;
+
 /**
  * @author <a href="mailto:areyouok@gmail.com">huangli</a>
  */
@@ -28,8 +31,15 @@ public class MyServiceImpl implements MyService {
 
     @Override
     public void cachedDemo() {
-        userService.loadUser(1);
-        userService.loadUser(1);
+        User user = new User();
+        user.setUserId(1);
+        User user2 = new User();
+        user2.setUserId(2);
+        List<User> pList = new ArrayList<>();
+        pList.add(user);
+        pList.add(user2);
+        List<User> users = userService.listUser(pList);
+        System.out.println(users);
         try {
             Thread.sleep(60000);
         } catch (InterruptedException e) {
