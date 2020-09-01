@@ -71,7 +71,7 @@ public class ListJetCacheInterceptor implements MethodInterceptor, ApplicationCo
         context.setArgs(invocation.getArguments());
         context.setCacheInvokeConfig(cac);
         context.setHiddenPackages(globalCacheConfig.getHiddenPackages());
-        return CacheHandler.invoke(context);
+        return ListCacheHandler.invoke(context);
     }
 
     public void setCacheConfigMap(ConfigMap cacheConfigMap) {
