@@ -1,7 +1,6 @@
 package jetcache.samples.redis;
 
 import com.alibaba.fastjson.JSON;
-import com.alibaba.fastjson.TypeReference;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
@@ -17,7 +16,6 @@ import java.lang.reflect.Field;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 import java.util.*;
-import java.util.stream.Collectors;
 
 /**
  * redis 集群管道操作工具类
@@ -37,126 +35,42 @@ public class ClusterPileLineOperator2 {
     }
 
 
-    /**
-     * 批量查询数据,key : value ，返回参值对结果(结果集无序)
-     *
-     * @param queryParams
-     * @param loader
-     * @param seconds     缓存有效时长 单位秒 ；小于0，不缓存结果
-     * @param <P>         入参泛参
-     * @param <V>         值泛参
-     * @return
-     */
-    public static <P, V> List<V> batchRead(List<P> queryParams, Loader<P, V> loader, int seconds) {
-        List<Pair<P, V>> pairs = batchReadPair(queryParams, loader, seconds);
-        List<V> resultList = pairs.stream().map(pvPair -> pvPair.getValue()).collect(Collectors.toList());
-        return resultList;
-    }
-
-    /**
-     * 哈唏 批量查询数据,key : value ，返回参值对结果(结果集无序)
-     *
-     * @param queryParams
-     * @param loader
-     * @param seconds     缓存有效时长 单位秒 ；小于0，不缓存结果
-     * @param <P>         入参泛参
-     * @param <V>         值泛参
-     * @return
-     */
-    public static <P, V> List<V> hbatchRead(List<P> queryParams, Loader<P, V> loader, int seconds) {
-        return hbatchRead(queryParams, loader, seconds, null);
-    }
-
-
-    /**
-     * 哈唏 批量查询数据,key : value ，返回参值对结果(结果集无序)
-     *
-     * @param queryParams
-     * @param loader
-     * @param seconds     缓存有效时长 单位秒 ；小于0，不缓存结果
-     * @param <P>         入参泛参
-     * @param <V>         值泛参
-     * @return
-     */
-    public static <P, V> List<V> hbatchRead(List<P> queryParams, Loader<P, V> loader, int seconds, String hashFieldName) {
-        List<Pair<P, V>> pairs = batchReadPair(queryParams, loader, seconds, true, hashFieldName);
-        List<V> resultList = pairs.stream().map(pvPair -> pvPair.getValue()).collect(Collectors.toList());
-        return resultList;
-    }
-
-    /**
-     * 哈唏 批量查询数据,pair 入参：对应的值  ，返回参值对结果(结果集无序)
-     *
-     * @param queryParams
-     * @param loader
-     * @param seconds     缓存有效时长 单位秒 ；小于0，不缓存结果
-     * @param <P>         入参泛参
-     * @param <V>         值泛参
-     * @return
-     */
-    public static <P, V> List<Pair<P, V>> hbatchReadPair(List<P> queryParams, Loader<P, V> loader, int seconds, String hashFieldName) {
-        List<Pair<P, V>> pairs = batchReadPair(queryParams, loader, seconds, true, hashFieldName);
-        return pairs;
-    }
-
-
-    /**
-     * 批量查询数据,pair 入参：对应的值  ，返回参值对结果(结果集无序)
-     *
-     * @param queryParams
-     * @param loader
-     * @param seconds     缓存有效时长 单位秒 ；小于0，不缓存结果
-     * @param <P>         入参泛参
-     * @param <V>         值泛参
-     * @return
-     */
-    public static <P, V> List<Pair<P, V>> batchReadPair(List<P> queryParams, Loader<P, V> loader, int seconds) {
-        return batchReadPair(queryParams, loader, seconds, false, null);
-    }
-
-
-    private static <P, V> List<Pair<P, V>> batchReadPair(List<P> queryParams, Loader<P, V> loader, int seconds, boolean isHash, String hashFieldName) {
-        Type actualValueType = findActualValueTypeArgument(loader);
-        Class<V> targetType = getTargetType(actualValueType);
-        CacheResult<P, Pair<P, V>> pairCacheResult = batchReadPairWithDetails(queryParams, targetType, loader, seconds, isArrayType(actualValueType), isHash, hashFieldName);
-        return pairCacheResult.getValues();
-    }
-
-    public static <P, V> Class<V> getTargetType(Type actualValueType) {
-        Class<V> targetType = null;
+    public static <P> Class<?> getTargetType(Type actualValueType) {
+        Class<?> targetType = null;
         if (isArrayType(actualValueType)) {
             ParameterizedType parameterizedType = (ParameterizedType) actualValueType;
-            targetType = (Class<V>) parameterizedType.getActualTypeArguments()[0];
+            targetType = (Class<?>) parameterizedType.getActualTypeArguments()[0];
         } else {
-            targetType = (Class<V>) actualValueType;
+            targetType = (Class<?>) actualValueType;
         }
         return targetType;
     }
 
+    public static <V> List<Pair<String/*key*/, V>> batchReadPair(List<String> keys, Class<V> targetType, Loader2 Loader2, int seconds) {
+        return batchReadPair(keys, targetType, Loader2, seconds, true, false, null);
+    }
 
     /**
      * 批量查询数据,key 对应值为组数类  ，返回参值对结果(结果集无序)
      *
-     * @param queryParams
+     * @param keys
      * @param targetType
-     * @param loader
+     * @param Loader2
      * @param seconds
      * @param isArray
      * @param <P>
-     * @param <V>
+     * @param <?>
      * @return
      */
-    private static <P, V> CacheResult<P, Pair<P, V>> batchReadPairWithDetails(List<P> queryParams, Class<V> targetType, Loader<P, V> loader, int seconds, boolean isArray, boolean isHash, String hashFieldName) {
-        List<Pair<String/*key*/, P>> pairQueryKeys = new ArrayList<>(queryParams.size());
-        queryParams.forEach(p -> {
-            pairQueryKeys.add(new Pair<>(loader.getReadKey(p), p));
-        });
-        Map<JedisPool, List<Pair<String, P>>> poolKeys = getPoolKeys(pairQueryKeys);
+    public static <V> List<Pair<String/*key*/, V>> batchReadPair(List<String> keys, Class<V> targetType, Loader2 Loader2,
+                                                                 int seconds, boolean isArray, boolean isHash, String hashFieldName) {
+
+        Map<JedisPool, List<String>> poolKeys = getPoolKeys(keys);
         //缓存结果集
-        List<Pair<P, V>> cacheResultValues = new ArrayList<>(pairQueryKeys.size());
-        List<P> hasCacheParams = new ArrayList<>();
-        List<P> noCacheParams = new ArrayList<>();
-        CacheResult<P, Pair<P, V>> cacheResult = new CacheResult();
+        List<Pair<String/*key*/, V>> cacheResultValues = new ArrayList<>(keys.size());
+        List<String> hasCacheParams = new ArrayList<>();
+        List<String> noCacheParams = new ArrayList<>();
+        CacheResult<Pair<String, V>> cacheResult = new CacheResult();
         cacheResult.setValues(cacheResultValues);
         cacheResult.setHasValueParams(hasCacheParams);
         cacheResult.setNoValueParams(noCacheParams);
@@ -165,15 +79,15 @@ public class ClusterPileLineOperator2 {
         }));
 
         if (noCacheParams.isEmpty()) {
-            return cacheResult;
+            return cacheResult.getValues();
         }
-        List<Pair<P, V>> listFromDb = loader.getFromDb(noCacheParams);
+        List<Pair<String, V>> listFromDb = Loader2.getFromDb(noCacheParams);
         if (listFromDb == null || listFromDb.isEmpty()) {
-            return cacheResult;
+            return cacheResult.getValues();
         }
         cacheResultValues.addAll(listFromDb);
-        batchWritePair(listFromDb, loader, seconds, isHash, hashFieldName);
-        return cacheResult;
+        //batchWritePair(listFromDb, Loader2, seconds, isHash, hashFieldName);
+        return cacheResult.getValues();
     }
 
 
@@ -186,44 +100,43 @@ public class ClusterPileLineOperator2 {
      * @param isArray
      * @param cacheResult
      * @param <P>
-     * @param <V>
+     * @param <?>
      */
-    private static <P, V> void readKeysOnPoolNode(JedisPool pool, List<Pair<String, P>> keyParams, Class<V> targetType, boolean isArray, CacheResult<P, Pair<P, V>> cacheResult, boolean isHash, String hashFieldName) {
+    private static <V> void readKeysOnPoolNode(JedisPool pool, List<String> keys, Class<V> targetType,
+                                               boolean isArray, CacheResult<Pair<String, V>> cacheResult, boolean isHash, String hashFieldName) {
         Jedis jedis = pool.getResource();
         Pipeline pipeline = jedis.pipelined();
-        keyParams.forEach(keyParam -> {
+        keys.forEach(key -> {
                     if (isHash) {
                         if (hashFieldName != null) {
-                            pipeline.hget(keyParam.getKey(), hashFieldName);
+                            pipeline.hget(key, hashFieldName);
                         } else {
-                            pipeline.hgetAll(keyParam.getKey());
+                            pipeline.hgetAll(key);
                         }
                     } else {
-                        pipeline.get(keyParam.getKey());
+                        pipeline.get(key);
                     }
                 }
         );
         List<Object> cacheValues = pipeline.syncAndReturnAll();
         jedis.close();
-        List<Pair<P, V>> cacheResultValues = cacheResult.getValues();
-        List<P> hasCacheParams = cacheResult.getHasValueParams();
-        List<P> noCacheParams = cacheResult.getNoValueParams();
-        for (int i = 0; i < keyParams.size(); i++) {
-            Pair<String, P> keyParam = keyParams.get(i);
+        List<Pair<String, V>> cacheResultValues = cacheResult.getValues();
+        List<String> hasCacheParams = cacheResult.getHasValueParams();
+        List<String> noCacheParams = cacheResult.getNoValueParams();
+        for (int i = 0; i < keys.size(); i++) {
             Object value = cacheValues.get(i);
             V targetValue = null;
+            String key = keys.get(i);
             try {
-                targetValue = (V) parseValue(value, targetType, isArray, keyParam);
+                targetValue = parseValue(value, targetType, isArray, key);
             } catch (Exception exception) {
                 logger.error("redis 缓存数据转换异常:[{}]type[{{}]", value, targetType.getName(), exception);
             }
-
-            P param = keyParam.getValue();
             if (targetValue == null) {
-                noCacheParams.add(param);
+                noCacheParams.add(key);
             } else {
-                hasCacheParams.add(param);
-                Pair<P, V> pair = new Pair<>(param, targetValue);
+                hasCacheParams.add(key);
+                Pair<String, V> pair = new Pair<>(key, targetValue);
                 cacheResultValues.add(pair);
             }
         }
@@ -242,7 +155,8 @@ public class ClusterPileLineOperator2 {
         return null;
     }
 
-    public static Type findFieldActualValueTypeArgument(Class targetType, String fieldName) throws NoSuchFieldException {
+    public static Type findFieldActualValueTypeArgument(Class targetType, String fieldName) throws
+            NoSuchFieldException {
         Field declaredField = targetType.getDeclaredField(fieldName);
         Type type = declaredField.getGenericType();
         if (type instanceof ParameterizedType) {
@@ -270,21 +184,20 @@ public class ClusterPileLineOperator2 {
     }
 
     /**
-     * @param queryKeyPairList
-     * @param <P>              入参实体
+     * @param keys
+     * @param <P>  入参实体
      * @return
      */
-    public static <P> Map<JedisPool, List<Pair<String, P>>> getPoolKeys(List<Pair<String, P>> queryKeyPairList) {
-        Map<JedisPool, List<Pair<String, P>>> poolKeyMap = new HashMap<>();
-        for (Pair<String, P> pair : queryKeyPairList) {
-            String key = pair.getKey();
+    public static <P> Map<JedisPool, List<String>> getPoolKeys(List<String> keys) {
+        Map<JedisPool, List<String>> poolKeyMap = new HashMap<>();
+        for (String key : keys) {
             JedisPool jedisPool = cluster.getPoolFromSlot(key);
             if (poolKeyMap.keySet().contains(jedisPool)) {
-                List<Pair<String, P>> poolKeys = poolKeyMap.get(jedisPool);
-                poolKeys.add(pair);
+                List<String> poolKeys = poolKeyMap.get(jedisPool);
+                poolKeys.add(key);
             } else {
-                List<Pair<String, P>> poolKeys = new ArrayList<>();
-                poolKeys.add(pair);
+                List<String> poolKeys = new ArrayList<>();
+                poolKeys.add(key);
                 poolKeyMap.put(jedisPool, poolKeys);
             }
         }
@@ -298,84 +211,35 @@ public class ClusterPileLineOperator2 {
      * @param toCacheList
      * @param call
      * @param seconds     缓存有效时间
-     * @param <V>
+     * @param <P>
      */
-    public static <V> void batchWrite(List<V> toCacheList, WriteCacheCall<V, V> call, int seconds) {
+    public static <P> void batchWrite(List<P> toCacheList, WriteCacheCall2<P> call, int seconds) {
         batchWrite(toCacheList, call, seconds, false);
     }
 
 
-    public static <P, V> void batchWritePair(List<Pair<P, V>> toCacheList, WriteCacheCall<P, V> call, int seconds) {
+    public static <P> void batchWritePair(List<Pair<P, P>> toCacheList, WriteCacheCall2<P> call,
+                                          int seconds) {
         batchWritePair(toCacheList, call, seconds, false, null);
     }
 
 
-    public static <V> void hbatchWrite(List<V> toCacheList, WriteCacheCall<V, V> call, int seconds) {
-        List<Pair<V, V>> collect = new ArrayList<>(toCacheList.size());
+    private static <P> void batchWrite(List<P> toCacheList, WriteCacheCall2<P> call, int seconds,
+                                       boolean isHash) {
+        List<Pair<P, P>> collect = new ArrayList<>(toCacheList.size());
         toCacheList.forEach(v -> {
-            collect.add(new Pair<V, V>(v, v));
-        });
-        batchWritePair(collect, call, seconds, true, null);
-    }
-
-    public static <V> void hbatchWrite(List<V> toCacheList, WriteCacheCall<V, V> call, int seconds, String hashFieldName) {
-        List<Pair<V, V>> collect = new ArrayList<>(toCacheList.size());
-        toCacheList.forEach(v -> {
-            collect.add(new Pair<V, V>(v, v));
-        });
-        batchWritePair(collect, call, seconds, true, hashFieldName);
-    }
-
-    private static <V> void batchWrite(List<V> toCacheList, WriteCacheCall<V, V> call, int seconds, boolean isHash) {
-        List<Pair<V, V>> collect = new ArrayList<>(toCacheList.size());
-        toCacheList.forEach(v -> {
-            collect.add(new Pair<V, V>(v, v));
+            collect.add(new Pair<P, P>(v, v));
         });
         batchWritePair(collect, call, seconds, isHash, null);
     }
 
 
-    public static <P, V> void batchWritePair(List<Pair<P, V>> toCacheList, WriteCacheCall<P, V> call, int seconds, boolean isHash, String hashFieldName) {
-        if (seconds <= 0) {
-            return;
-        }
-        //转换缓存key
-        List<Pair<String/*cacheKey*/, V>> queryKeyPairList = new ArrayList<>(toCacheList.size());
-        toCacheList.forEach(pv -> {
-            Pair<String, V> keyValue = new Pair<>(call.getWriteKey(pv.getKey(), pv.getValue()), pv.getValue());
-            queryKeyPairList.add(keyValue);
-        });
+    public static <P> void batchWritePair(List<Pair<P, P>> toCacheList, WriteCacheCall2<P> call,
+                                          int seconds, boolean isHash, String hashFieldName) {
 
-        Map<JedisPool, List<Pair<String, V>>> writePoolKeys = getPoolKeys(queryKeyPairList);
-        for (JedisPool jedisPool : writePoolKeys.keySet()) {
-            Jedis jedis = jedisPool.getResource();
-            Pipeline pipeline = jedis.pipelined();
-            List<Pair<String, V>> poolData = writePoolKeys.get(jedisPool);
-            poolData.forEach(pair -> {
-                V value = pair.getValue();
-                String jsonValue = covert2CacheValue(value);
-                if (isHash) {
-                    if (hashFieldName != null) {
-                        pipeline.hset(pair.getKey(), hashFieldName, jsonValue);
-
-                    } else {
-                        TypeReference<Map<String, String>> typeReference = new TypeReference<Map<String, String>>() {
-                        };
-                        Map<String, String> hashMap = JSON.parseObject(jsonValue, typeReference);
-                        pipeline.hmset(pair.getKey(), hashMap);
-                    }
-                    pipeline.expire(pair.getKey(), seconds);
-                } else {
-                    pipeline.setex(pair.getKey(), seconds, jsonValue);
-                }
-
-            });
-            pipeline.sync();
-            jedis.close();
-        }
     }
 
-    private static <V> String covert2CacheValue(V value) {
+    private static String covert2CacheValue(Object value) {
         if (value instanceof String) {
             return (String) value;
         }
@@ -409,20 +273,19 @@ public class ClusterPileLineOperator2 {
     /**
      * 批量删除操作
      *
-     * @param deleteParams
+     * @param deleteKeys
      * @param writeCall
-     * @param <V>
+     * @param <?>
      */
-    public static <V> void batchDelete(List<V> deleteParams, WriteCacheCall<V, V> writeCall) {
-        List<String> deleteKeys = deleteParams.stream().map(p -> writeCall.getWriteKey(p, p)).collect(Collectors.toList());
+    public static void batchDelete(List<String> deleteKeys, WriteCacheCall2 writeCall) {
         List<Pair<String, String>> queryKeyPairList = new ArrayList<>(deleteKeys.size());
         deleteKeys.forEach((key) -> queryKeyPairList.add(new Pair<>(key, key)));
-        Map<JedisPool, List<Pair<String, String>>> poolKeys = getPoolKeys(queryKeyPairList);
+        Map<JedisPool, List<String>> poolKeys = getPoolKeys(deleteKeys);
         for (JedisPool jedisPool : poolKeys.keySet()) {
             Jedis jedis = jedisPool.getResource();
             Pipeline pipeline = jedis.pipelined();
-            List<Pair<String, String>> keyPairs = poolKeys.get(jedisPool);
-            keyPairs.forEach((pair) -> pipeline.del(pair.getKey()));
+            List<String> keys = poolKeys.get(jedisPool);
+            keys.forEach((key) -> pipeline.del(key));
             pipeline.sync();
             jedis.close();
         }
@@ -430,17 +293,18 @@ public class ClusterPileLineOperator2 {
     }
 
 
-    private static <P, V> Object parseValue(Object srcValue, Class<V> targetType, boolean isArray, Pair<String, P> keyParam) throws NoSuchFieldException {
+    private static <V> V parseValue(Object srcValue, Class<V> targetType, boolean isArray, String key) throws
+            NoSuchFieldException {
         if (srcValue == null) {
             return null;
         }
         if (srcValue instanceof String) {
-            return parseStringValue((String) srcValue, targetType, isArray);
+            return (V) parseStringValue((String) srcValue, targetType, isArray);
         } else if (srcValue instanceof Map) {
             Map<String, String> map = (Map) srcValue;
             if (map.size() == 0) {
                 if (logger.isDebugEnabled()) {
-                    logger.debug("has key of  [{}]  value is expire ", keyParam.getKey());
+                    logger.debug("has key of  [{}]  value is expire ", key);
                 }
                 return null;
             }
@@ -456,20 +320,20 @@ public class ClusterPileLineOperator2 {
                 if (isArrayType(propertyType)) {
                     //处理列表泛参
                     Class fieldGenericType = (Class) findFieldActualValueTypeArgument(targetType, propertyDescriptor.getName());
-                    Object targetValue  =parseStringValue(entry.getValue(), fieldGenericType, true);
+                    Object targetValue = parseStringValue(entry.getValue(), fieldGenericType, true);
                     beanWrapper.setPropertyValue(hkey, targetValue);
                 } else {
-                    Object targetValue = parseStringValue(entry.getValue(), propertyDescriptor.getPropertyType(),false);
+                    Object targetValue = parseStringValue(entry.getValue(), propertyDescriptor.getPropertyType(), false);
                     beanWrapper.setPropertyValue(hkey, targetValue);
                 }
             }
-            return beanWrapper.getWrappedInstance();
+            return (V) beanWrapper.getWrappedInstance();
         }
         logger.error("不支持的数据转换[{}][{}]", srcValue, targetType);
         return null;
     }
 
-    private static <V> Object parseStringValue(String srcValue, Class<V> targetType, boolean isArray) {
+    private static Object parseStringValue(String srcValue, Class<?> targetType, boolean isArray) {
         if (isArray) {
             try {
                 return JSON.parseArray(srcValue, targetType);

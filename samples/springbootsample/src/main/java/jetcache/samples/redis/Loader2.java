@@ -8,29 +8,16 @@ import java.util.List;
  * @author xieyang
  * @param <P> key 对应的入参，可作为查库的参数
  */
-public interface Loader2<P> {
+public interface Loader2 {
 
-
-    /**
-     * 据入参 用户自定读缓存key
-     * 如果用户不实现，默认p 为String 类型的 key
-     * @param param
-     * @return key 缓存的key
-     */
-    default String  getReadKey(P param){
-        if(param instanceof  String){
-            return (String) param;
-        }
-        throw new RuntimeException("必须覆写 getReadKey 返回读缓存key");
-    }
 
 
     /**
      * 没有缓存的入参回调,可以不覆写写
-     * @param noCacheParams
+     * @param noCacheKes
      * @return 可以从数据查询结果集
      */
-   default List<Pair<P,Object>> getFromDb(List<P> noCacheParams){
+   default <V> List<Pair<String,V>> getFromDb(List<String> noCacheKes){
         return null;
     }
 

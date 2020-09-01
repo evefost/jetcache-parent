@@ -9,10 +9,8 @@ import com.alicp.jetcache.anno.method.CacheInvokeContext;
 import com.alicp.jetcache.anno.method.ClassUtil;
 import com.alicp.jetcache.anno.support.*;
 import com.alicp.jetcache.event.CacheLoadEvent;
+import jetcache.samples.redis.*;
 import jetcache.samples.redis.CacheResult;
-import jetcache.samples.redis.ClusterPileLineOperator;
-import jetcache.samples.redis.ClusterPileLineOperator2;
-import jetcache.samples.redis.Loader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -228,7 +226,9 @@ public class ListCacheHandler implements InvocationHandler {
             return invokeOrigin(context);
         }
 
-        List keys = (List) ExpressionUtil.evalKey(context, cic.getCachedAnnoConfig());
+        List originKeys = (List) ExpressionUtil.evalKey(context, cic.getCachedAnnoConfig());
+        List<String> keys = new ArrayList<>(originKeys.size());
+        originKeys.forEach((k)->keys.add(k.toString()));
 //        if (key == null) {
 //            return loadAndCount(context, cache, key);
 //        }
@@ -238,35 +238,57 @@ public class ListCacheHandler implements InvocationHandler {
 //        }
         Type retType = context.getMethod().getGenericReturnType();
         Class<?> targetType = ClusterPileLineOperator2.getTargetType(retType);
-
+        ClusterPileLineOperator2.batchReadPair(keys, targetType, new Loader2() {
+            @Override
+            public <V> List<Pair<String, V>> getFromDb(List<String> noCacheKes) {
+                return null;
+            }
+        },12);
+        return null;
+//        List<?> objects = ClusterPileLineOperator2.batchRead(keys, targetType, new Loader2() {
+//
+//
+//            @Override
+//            public String getReadKey(Object param) {
+//                return param.toString();
+//            }
+//
+//            @Override
+//            public List<Pair<Object, Object>> getFromDb(List noCacheParams) {
+//
+//                return null;
+//            }
+//        }, 12);
+//        return objects;
+//        ClusterPileLineOperator2.batchRead()
 //        CacheResult cacheResult = ClusterPileLineOperator.batchRead(keys, targetType, new Loader<Object,String>() {
 //
 //        }, 12);
 
-        try {
-            CacheLoader loader = new CacheLoader() {
-                @Override
-                public Object load(Object k) throws Throwable {
-                    Object result = invokeOrigin(context);
-                    context.setResult(result);
-                    return result;
-                }
-
-                @Override
-                public boolean vetoCacheUpdate() {
-                    return !ExpressionUtil.evalPostCondition(context, cic.getCachedAnnoConfig());
-                }
-            };
-            Object result = cache.computeIfAbsent(keys, loader);
-            if (cache instanceof CacheHandlerRefreshCache) {
-                // We invoke addOrUpdateRefreshTask manually
-                // because the cache has no loader(GET method will not invoke it)
-                ((CacheHandlerRefreshCache) cache).addOrUpdateRefreshTask(keys, loader);
-            }
-            return result;
-        } catch (CacheInvokeException e) {
-            throw e.getCause();
-        }
+//        try {
+//            CacheLoader loader = new CacheLoader() {
+//                @Override
+//                public Object load(Object k) throws Throwable {
+//                    Object result = invokeOrigin(context);
+//                    context.setResult(result);
+//                    return result;
+//                }
+//
+//                @Override
+//                public boolean vetoCacheUpdate() {
+//                    return !ExpressionUtil.evalPostCondition(context, cic.getCachedAnnoConfig());
+//                }
+//            };
+//            Object result = cache.computeIfAbsent(keys, loader);
+//            if (cache instanceof CacheHandlerRefreshCache) {
+//                // We invoke addOrUpdateRefreshTask manually
+//                // because the cache has no loader(GET method will not invoke it)
+//                ((CacheHandlerRefreshCache) cache).addOrUpdateRefreshTask(keys, loader);
+//            }
+//            return result;
+//        } catch (CacheInvokeException e) {
+//            throw e.getCause();
+//        }
     }
 
     private static Object loadAndCount(CacheInvokeContext context, Cache cache, Object key) throws Throwable {

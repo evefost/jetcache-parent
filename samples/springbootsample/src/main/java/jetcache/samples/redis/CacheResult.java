@@ -2,7 +2,7 @@ package jetcache.samples.redis;
 
 import java.util.List;
 
-public class CacheResult<P,V> {
+public class CacheResult<V> {
 
     /**
      * 缓存值列表
@@ -12,12 +12,12 @@ public class CacheResult<P,V> {
     /**
      * 有值的P
      */
-    private List<P> hasValueParams;
+    private List<String> hasValueParams;
 
     /**
      * 无值的P
      */
-    private List<P> noValueParams;
+    private List<String> noValueParams;
 
     public List<V> getValues() {
         return values;
@@ -27,19 +27,19 @@ public class CacheResult<P,V> {
         this.values = values;
     }
 
-    public List<P> getHasValueParams() {
+    public List<String> getHasValueParams() {
         return hasValueParams;
     }
 
-    public void setHasValueParams(List<P> hasValueParams) {
+    public void setHasValueParams(List<String> hasValueParams) {
         this.hasValueParams = hasValueParams;
     }
 
-    public List<P> getNoValueParams() {
+    public List<String> getNoValueParams() {
         return noValueParams;
     }
 
-    public void setNoValueParams(List<P> noValueParams) {
+    public void setNoValueParams(List<String> noValueParams) {
         this.noValueParams = noValueParams;
     }
 }

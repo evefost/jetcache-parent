@@ -66,7 +66,7 @@ public class RedisPipelineConnectionFactory extends JedisConnectionFactory imple
     private void registerCluster(JedisPipelineCluster cluster ){
         //注入管道操作工具
         beanFactory.registerSingleton("redisCluster",cluster);
-        ClusterPileLineOperator pileLineOperator = new ClusterPileLineOperator(cluster);
+        ClusterPileLineOperator2 pileLineOperator = new ClusterPileLineOperator2(cluster);
         beanFactory.registerSingleton("redisPileLineOperator",pileLineOperator);
     }
 
