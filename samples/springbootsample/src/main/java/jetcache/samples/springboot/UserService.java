@@ -19,6 +19,7 @@ public interface UserService {
     @Cached(name = "loadUser",key = "#person.id+':'+#user.userId",expire = 100,cacheType = CacheType.LOCAL)
     User loadUser(User user,Person person);
 
-    @ListCached(name = "loadUser",key = "#users[$].id",expire = 100,cacheType = CacheType.LOCAL)
+    @ListCached(name = "loadUser",key = "#users[$].userId",expire = 100,cacheType = CacheType.LOCAL)
     List<User> listUser(List<User> users);
+
 }

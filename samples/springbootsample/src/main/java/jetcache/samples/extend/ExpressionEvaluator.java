@@ -5,7 +5,9 @@ package jetcache.samples.extend;
 
 import com.alicp.jetcache.CacheConfigException;
 import com.alicp.jetcache.CacheException;
+import com.alicp.jetcache.anno.method.CacheInvokeConfig;
 import com.alicp.jetcache.anno.method.CacheInvokeContext;
+import com.alicp.jetcache.anno.support.CachedAnnoConfig;
 import org.mvel2.MVEL;
 import org.springframework.core.DefaultParameterNameDiscoverer;
 import org.springframework.core.ParameterNameDiscoverer;
@@ -116,11 +118,9 @@ class SpelEvaluator implements Function<Object, Object> {
         parameterNameDiscoverer = new DefaultParameterNameDiscoverer();
     }
 
-    private final Expression expression;
     private String[] parameterNames;
 
     public SpelEvaluator(String script, Method defineMethod) {
-        expression = parser.parseExpression(script);
         if (defineMethod.getParameterCount() > 0) {
             parameterNames = parameterNameDiscoverer.getParameterNames(defineMethod);
         }
@@ -130,6 +130,9 @@ class SpelEvaluator implements Function<Object, Object> {
     public List<Object> apply(Object rootObject) {
         EvaluationContext context = new StandardEvaluationContext(rootObject);
         CacheInvokeContext cic = (CacheInvokeContext) rootObject;
+        CacheInvokeConfig cacheInvokeConfig = cic.getCacheInvokeConfig();
+        CachedAnnoConfig cachedAnnoConfig = cacheInvokeConfig.getCachedAnnoConfig();
+        String key = cachedAnnoConfig.getKey();
         if (parameterNames != null) {
             for (int i = 0; i < parameterNames.length; i++) {
                 context.setVariable(parameterNames[i], cic.getArgs()[i]);
@@ -137,6 +140,36 @@ class SpelEvaluator implements Function<Object, Object> {
         }
         context.setVariable("result", cic.getResult());
         //return expression.getValue(context);
-        return new ArrayList<>();
+        Object[] args = cic.getArgs();
+        List<Object> keys = parseTargetKeys(key, args, context);
+        return keys;
+    }
+
+
+    /**
+     * #users[$].id
+     * @param key
+     * @param args
+     * @return
+     */
+    private List<Object> parseTargetKeys(String key,Object[] args,EvaluationContext context){
+        List targetParamList = getTargetList(args);
+        List<Object> targetKeyList = new ArrayList<>(targetParamList.size());
+        for(int i=0;i<targetParamList.size();i++){
+            String script = key.replace("[$]","["+i+"]");
+            Object value = parser.parseExpression(script).getValue(context);
+            targetKeyList.add(value);
+        }
+        return targetKeyList;
+    }
+
+
+    private List getTargetList(Object[] args){
+        for(Object arg:args){
+            if(arg  instanceof List){
+                return (List) arg;
+            }
+        }
+        return null;
     }
 }

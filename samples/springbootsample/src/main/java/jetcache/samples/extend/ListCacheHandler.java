@@ -9,12 +9,17 @@ import com.alicp.jetcache.anno.method.CacheInvokeContext;
 import com.alicp.jetcache.anno.method.ClassUtil;
 import com.alicp.jetcache.anno.support.*;
 import com.alicp.jetcache.event.CacheLoadEvent;
+import jetcache.samples.redis.CacheResult;
+import jetcache.samples.redis.ClusterPileLineOperator;
+import jetcache.samples.redis.ClusterPileLineOperator2;
+import jetcache.samples.redis.Loader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.lang.reflect.Array;
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
+import java.lang.reflect.Type;
 import java.util.*;
 import java.util.function.Supplier;
 
@@ -213,7 +218,7 @@ public class ListCacheHandler implements InvocationHandler {
         }
     }
 
-    private static Object invokeWithCached(CacheInvokeContext context)
+    private static  Object invokeWithCached(CacheInvokeContext context)
             throws Throwable {
         CacheInvokeConfig cic = context.getCacheInvokeConfig();
         CachedAnnoConfig cac = cic.getCachedAnnoConfig();
@@ -223,14 +228,20 @@ public class ListCacheHandler implements InvocationHandler {
             return invokeOrigin(context);
         }
 
-        Object key = ExpressionUtil.evalKey(context, cic.getCachedAnnoConfig());
-        if (key == null) {
-            return loadAndCount(context, cache, key);
-        }
+        List keys = (List) ExpressionUtil.evalKey(context, cic.getCachedAnnoConfig());
+//        if (key == null) {
+//            return loadAndCount(context, cache, key);
+//        }
+//
+//        if (!ExpressionUtil.evalCondition(context, cic.getCachedAnnoConfig())) {
+//            return loadAndCount(context, cache, key);
+//        }
+        Type retType = context.getMethod().getGenericReturnType();
+        Class<?> targetType = ClusterPileLineOperator2.getTargetType(retType);
 
-        if (!ExpressionUtil.evalCondition(context, cic.getCachedAnnoConfig())) {
-            return loadAndCount(context, cache, key);
-        }
+//        CacheResult cacheResult = ClusterPileLineOperator.batchRead(keys, targetType, new Loader<Object,String>() {
+//
+//        }, 12);
 
         try {
             CacheLoader loader = new CacheLoader() {
@@ -246,11 +257,11 @@ public class ListCacheHandler implements InvocationHandler {
                     return !ExpressionUtil.evalPostCondition(context, cic.getCachedAnnoConfig());
                 }
             };
-            Object result = cache.computeIfAbsent(key, loader);
+            Object result = cache.computeIfAbsent(keys, loader);
             if (cache instanceof CacheHandlerRefreshCache) {
                 // We invoke addOrUpdateRefreshTask manually
                 // because the cache has no loader(GET method will not invoke it)
-                ((CacheHandlerRefreshCache) cache).addOrUpdateRefreshTask(key, loader);
+                ((CacheHandlerRefreshCache) cache).addOrUpdateRefreshTask(keys, loader);
             }
             return result;
         } catch (CacheInvokeException e) {
